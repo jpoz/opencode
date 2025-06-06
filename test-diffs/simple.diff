@@ -1,0 +1,14 @@
+--- a/config.yaml
++++ b/config.yaml
+@@ -1,8 +1,10 @@
+ # Application Configuration
+ app:
+   name: "OpenCode"
+-  version: "1.0.0"
++  version: "1.1.0"
+   debug: false
++  environment: "production"
++  timeout: 30s
+ 
+ database:
+   host: "localhost"

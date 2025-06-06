@@ -1,0 +1,63 @@
+--- a/server.go
++++ b/server.go
+@@ -1,15 +1,25 @@
+ package main
+ 
+ import (
+ 	"fmt"
+ 	"net/http"
++	"log"
++	"time"
++	"context"
+ )
+ 
++// Server represents our HTTP server
++type Server struct {
++	port string
++	mux  *http.ServeMux
++}
++
+-func main() {
+-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+-		fmt.Fprintf(w, "Hello, World!")
+-	})
+-	
+-	fmt.Println("Server starting on :8080")
+-	http.ListenAndServe(":8080", nil)
++func NewServer(port string) *Server {
++	return &Server{
++		port: port,
++		mux:  http.NewServeMux(),
++	}
++}
++
++func (s *Server) Start(ctx context.Context) error {
++	s.mux.HandleFunc("/", s.handleHome)
++	s.mux.HandleFunc("/health", s.handleHealth)
++	
++	server := &http.Server{
++		Addr:    ":" + s.port,
++		Handler: s.mux,
++		ReadTimeout: 10 * time.Second,
++		WriteTimeout: 10 * time.Second,
++	}
++	
++	log.Printf("Server starting on :%s", s.port)
++	return server.ListenAndServe()
++}
++
++func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
++	fmt.Fprintf(w, "Hello, OpenCode!")
++}
++
++func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
++	w.Header().Set("Content-Type", "application/json")
++	fmt.Fprintf(w, `{"status": "ok", "timestamp": "%s"}`, time.Now().Format(time.RFC3339))
++}
++
++func main() {
++	server := NewServer("8080")
++	if err := server.Start(context.Background()); err != nil {
++		log.Fatal(err)
++	}
+ }
