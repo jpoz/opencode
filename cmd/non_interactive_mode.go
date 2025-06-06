@@ -146,7 +146,7 @@ func handleNonInteractiveMode(ctx context.Context, prompt string, outputFormat f
 	defer cancel()
 
 	// Create the app
-	app, err := app.New(ctx, conn)
+	app, err := app.NewWithoutUI(ctx, conn)
 	if err != nil {
 		slog.Error("Failed to create app", "error", err)
 		return err

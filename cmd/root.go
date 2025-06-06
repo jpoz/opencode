@@ -135,25 +135,26 @@ to assist developers in writing, debugging, and understanding code directly from
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		app, err := app.New(ctx, conn)
+		// Create app for TUI mode
+		appInstance, err := app.NewWithoutUI(ctx, conn)
 		if err != nil {
 			slog.Error("Failed to create app", "error", err)
 			return err
 		}
-		sessionAwareHandler.WithApp(app)
+		sessionAwareHandler.WithApp(appInstance)
 
-		// Set up the TUI
+		// Initialize MCP tools in the background
+		initMCPTools(ctx, appInstance)
+
+		// TUI mode - traditional interactive terminal interface
 		zone.NewGlobal()
 		program := tea.NewProgram(
-			tui.New(app),
+			tui.New(appInstance),
 			tea.WithAltScreen(),
 		)
 
-		// Initialize MCP tools in the background
-		initMCPTools(ctx, app)
-
 		// Setup the subscriptions, this will send services events to the TUI
-		ch, cancelSubs := setupSubscriptions(app, ctx)
+		ch, cancelSubs := setupSubscriptions(appInstance, ctx)
 
 		// Create a context for the TUI message handler
 		tuiCtx, tuiCancel := context.WithCancel(ctx)
@@ -188,7 +189,7 @@ to assist developers in writing, debugging, and understanding code directly from
 			cancelSubs()
 
 			// Then shutdown the app
-			app.Shutdown()
+			appInstance.Shutdown()
 
 			// Then cancel TUI message handler
 			tuiCancel()

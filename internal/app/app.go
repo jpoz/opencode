@@ -12,6 +12,7 @@ import (
 	"github.com/sst/opencode/internal/config"
 	"github.com/sst/opencode/internal/fileutil"
 	"github.com/sst/opencode/internal/history"
+	ui "github.com/sst/opencode/internal/interface"
 	"github.com/sst/opencode/internal/llm/agent"
 	"github.com/sst/opencode/internal/logging"
 	"github.com/sst/opencode/internal/lsp"
@@ -35,6 +36,9 @@ type App struct {
 
 	LSPClients map[string]*lsp.Client
 
+	// User Interface (TUI or Remote)
+	UI ui.UserInterface
+
 	clientsMutex sync.RWMutex
 
 	watcherCancelFuncs []context.CancelFunc
@@ -46,7 +50,7 @@ type App struct {
 	completionDialogOpen bool
 }
 
-func New(ctx context.Context, conn *sql.DB) (*App, error) {
+func New(ctx context.Context, conn *sql.DB, userInterface ui.UserInterface) (*App, error) {
 	err := logging.InitService(conn)
 	if err != nil {
 		slog.Error("Failed to initialize logging service", "error", err)
@@ -88,6 +92,7 @@ func New(ctx context.Context, conn *sql.DB) (*App, error) {
 		Permissions:    permission.GetService(),
 		Status:         status.GetService(),
 		LSPClients:     make(map[string]*lsp.Client),
+		UI:             userInterface,
 	}
 
 	// Initialize theme based on configuration
@@ -114,6 +119,12 @@ func New(ctx context.Context, conn *sql.DB) (*App, error) {
 	}
 
 	return app, nil
+}
+
+// NewWithoutUI creates a new App without a UserInterface (for backward compatibility).
+// This function is deprecated and should only be used during migration.
+func NewWithoutUI(ctx context.Context, conn *sql.DB) (*App, error) {
+	return New(ctx, conn, nil)
 }
 
 // initTheme sets the application theme based on the configuration
