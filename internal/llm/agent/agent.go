@@ -383,11 +383,11 @@ func (a *agent) streamAndHandleEvents(ctx context.Context, sessionID string, msg
 	for event := range eventChan {
 		if processErr := a.processEvent(ctx, sessionID, &assistantMsg, event); processErr != nil {
 			a.finishMessage(ctx, &assistantMsg, message.FinishReasonCanceled)
-			return assistantMsg, nil, processErr
+			return assistantMsg, nil, fmt.Errorf("failed to process event: %w", processErr)
 		}
 		if ctx.Err() != nil {
 			a.finishMessage(context.Background(), &assistantMsg, message.FinishReasonCanceled)
-			return assistantMsg, nil, ctx.Err()
+			return assistantMsg, nil, fmt.Errorf("context canceled: %w", ctx.Err())
 		}
 	}
 
@@ -400,13 +400,13 @@ func (a *agent) streamAndHandleEvents(ctx context.Context, sessionID string, msg
 				if errors.Is(err, context.Canceled) {
 					a.finishMessage(context.Background(), &assistantMsg, message.FinishReasonCanceled)
 				}
-				return assistantMsg, nil, err
+				return assistantMsg, nil, fmt.Errorf("failed to execute tool calls: %w", err)
 			}
 
 			// Create a message with the tool results
 			toolResponseMsg, err := a.createToolResponseMessage(ctx, sessionID, toolResults)
 			if err != nil {
-				return assistantMsg, nil, err
+				return assistantMsg, nil, fmt.Errorf("failed to create tool response message: %w", err)
 			}
 
 			return assistantMsg, toolResponseMsg, nil

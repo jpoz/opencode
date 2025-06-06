@@ -1,0 +1,11 @@
+--- /dev/null
++++ b/cmd/utils/logger.go
+@@ -0,0 +1,10 @@
+ package utils
+
+ import "log"
+
+ // LogInfo logs informational messages
+ func LogInfo(msg string) {
+    log.Printf("INFO: %s", msg)
+ }

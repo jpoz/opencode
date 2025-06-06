@@ -1,0 +1,53 @@
+--- a/cmd/root.go
++++ b/cmd/root.go
+@@ -45,6 +45,20 @@ func init() {
+ 	rootCmd.AddCommand(schemaCmd)
+ 	rootCmd.AddCommand(difftestCmd)
++	
++	// New statistics command
++	rootCmd.AddCommand(statsCmd)
+ }
++
++// statsCmd displays usage statistics
++var statsCmd = &cobra.Command{
++   Use:   "stats",
++   Short: "Display usage metrics",
++   Long:  "Retrieve and display command execution and error metrics from internal storage.",
++   RunE: func(cmd *cobra.Command, args []string) error {
++       stats, err := metrics.LoadStats()
++       if err != nil {
++           return err
++       }
++       fmt.Printf("Commands executed: %d\nErrors encountered: %d\nLast run: %s\n", stats.Executed, stats.Errors, stats.LastRun.Format(time.RFC822))
++       return nil
++   },
++}
+--- /dev/null
++++ b/cmd/stats.go
+@@ -0,0 +1,80 @@
++package cmd
++
++import (
++   "fmt"
++   "time"
++   "github.com/spf13/cobra"
++   "internal/metrics"
++)
++
++// statsCmd prints aggregated system metrics
++var statsCmd = &cobra.Command{
++   Use:   "stats",
++   Short: "Display usage metrics",
++   Long:  "Retrieve and display command execution and error metrics from internal storage.",
++   RunE: func(cmd *cobra.Command, args []string) error {
++       stats, err := metrics.LoadStats()
++       if err != nil {
++           return err
++       }
++       uptime := time.Since(stats.StartTime).Truncate(time.Second)
++       fmt.Printf("Commands: %d, Errors: %d, Uptime: %s\n", stats.Executed, stats.Errors, uptime)
++       return nil
++   },
++}
++
++// internal/metrics/metrics.go is assumed to provide the LoadStats method

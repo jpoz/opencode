@@ -1,0 +1,8 @@
+--- a/internal/old_helper.go
++++ /dev/null
+@@ -1,5 +0,0 @@
+ package internal
+
+ // OldHelper is deprecated and should be removed
+ func OldHelper() {
+}

@@ -1,0 +1,54 @@
+--- a/cmd/root.go
++++ b/cmd/root.go
+@@ -50,6 +50,15 @@ func init() {
+   rootCmd.AddCommand(schemaCmd)
+   rootCmd.AddCommand(difftestCmd)
+   rootCmd.AddCommand(nonInteractiveCmd)
++  // Register new statistics command
++  rootCmd.AddCommand(statsCmd)
+}
+
+// statsCmd prints execution metrics gathered by the tool
+var statsCmd = &cobra.Command{
+  Use:   "stats",
+  Short: "Show execution and error statistics",
+  Long:  "Retrieve aggregated data on commands executed, errors occurred, and uptime of the application.",
+  RunE: func(cmd *cobra.Command, args []string) error {
+    stats, err := metrics.LoadStats()
+    if err != nil {
+      return fmt.Errorf("failed to load stats: %w", err)
+    }
+    fmt.Printf("Total commands: %d\nErrors: %d\nUptime: %s\n", stats.Total, stats.Errors, stats.Uptime)
+    return nil
+  },
+}
+
+--- /dev/null
++++ b/cmd/stats.go
+@@ -0,0 +1,80 @@
+package cmd
+
+import (
+  "fmt"
+  "time"
+  "github.com/spf13/cobra"
+  "github.com/sst/opencode/internal/metrics"
+)
+
+// statsCmd displays usage metrics
+var statsCmd = &cobra.Command{
+  Use:   "stats",
+  Short: "Display usage and error metrics",
+  Long:  "Retrieves and displays cumulative statistics such as total commands run, errors encountered, and tool uptime.",
+  RunE: func(cmd *cobra.Command, args []string) error {
+    stats, err := metrics.LoadStats()
+    if err != nil {
+      return fmt.Errorf("stats load error: %w", err)
+    }
+    elapsed := time.Since(stats.StartedAt).Truncate(time.Second)
+    fmt.Printf("Commands executed: %d\nErrors: %d\nUptime: %s\n", stats.Total, stats.Errors, elapsed)
+    return nil
+  },
+}
+
+// metrics package defines a Stats struct and LoadStats() to retrieve metrics

@@ -1,0 +1,14 @@
+--- a/long_lines_example.txt
++++ b/long_lines_example.txt
+@@ -1,7 +1,7 @@
+-This is a super long line that originally contained a long series of repeated words or data points such as alpha, beta, gamma, delta, epsilon, zeta, eta, theta, iota, kappa, lambda, mu, nu, xi, omicron, pi, rho, sigma, tau, upsilon, phi, chi, psi, omega.
++This is a super long line that has now been modified to contain a different sequence of repeated words or data points such as uno, dos, tres, cuatro, cinco, seis, siete, ocho, nueve, diez, once, doce, trece, catorce, quince, dieciseis, diecisiete, dieciocho, diecinueve, veinte, veintiuno.
+ This line stays unchanged but is itself very long—over two hundred characters— so that you can see how the scroll and wrap behavior works in the terminal-based diff viewer.
+-Another extremely long line that gets removed entirely: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
++Another extremely long line with an edit: Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+ Yet another line that remains the same to provide context around the edits and test the scrolling behavior when there are only a few changes among mostly unchanged content.
+@@ -20,6 +20,8 @@ And a short line at the bottom for context.
+ 
++# New very long addition line that didn’t exist before: The quick brown fox jumps over the lazy dog while carrying an umbrella, a smartphone, and a briefcase full of extremely important documents that must be delivered before sunset.
++
+ And the final footer line to close out this test diff file.

@@ -1,14 +1,16 @@
 package main
 
 import (
-	"fmt"
-	"io"
-	"os"
-	"strings"
+   "fmt"
+   "io"
+   "os"
+   "strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/sst/opencode/internal/diff"
+   tea "github.com/charmbracelet/bubbletea"
+   "github.com/charmbracelet/lipgloss"
+   xansi "github.com/charmbracelet/x/ansi"
+   "github.com/sst/opencode/internal/tui/layout"
+   "github.com/sst/opencode/internal/diff"
 )
 
 type model struct {
@@ -71,39 +73,58 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// View renders the diff in a hovering popup box over a blank background.
 func (m model) View() string {
-	if m.content == "" || m.height < 2 {
-		return "Loading diff..."
-	}
-
-	// Render the diff with current width
-	rendered, err := diff.FormatDiff(m.content, diff.WithTotalWidth(m.width))
-	if err != nil {
-		return fmt.Sprintf("Error rendering diff: %v", err)
-	}
-
-	lines := strings.Split(rendered, "\n")
-
-	// Apply scrolling
-	startLine := m.scrollY
-	endLine := min(len(lines), startLine+m.height-2)
-
-	var displayLines []string
-	if startLine < len(lines) {
-		displayLines = lines[startLine:endLine]
-	}
-
-	content := strings.Join(displayLines, "\n")
-
-	// Add status bar
-	statusBar := lipgloss.NewStyle().
-		Background(lipgloss.Color("240")).
-		Foreground(lipgloss.Color("255")).
-		Width(m.width).
-		Render(fmt.Sprintf(" Line %d-%d of %d | q to quit | ↑↓/jk to scroll | PgUp/PgDn | Home/End ",
-			startLine+1, endLine, len(lines)))
-
-	return content + "\n" + statusBar
+   if m.content == "" || m.height < 4 || m.width < 10 {
+       return "Loading diff..."
+   }
+   // Calculate inner content width (box width minus border and padding)
+   // Calculate available width for diff content inside the box
+   diffWidth := m.width - 6
+   // Render side-by-side diff
+   rendered, err := diff.FormatDiff(m.content, diff.WithTotalWidth(diffWidth))
+   if err != nil {
+       return fmt.Sprintf("Error rendering diff: %v", err)
+   }
+   // Manually wrap long lines to diffWidth to avoid box overflow
+   rawLines := strings.Split(rendered, "\n")
+   var lines []string
+   for _, rl := range rawLines {
+       rem := rl
+       for lipgloss.Width(rem) > diffWidth {
+           part := xansi.Cut(rem, diffWidth, lipgloss.Width(rem))
+           lines = append(lines, part)
+           rem = strings.TrimPrefix(rem, part)
+       }
+       lines = append(lines, rem)
+   }
+   // Apply scrolling to wrapped lines
+   total := len(lines)
+   start := max(0, m.scrollY)
+   end := min(total, start+m.height-6)
+   display := strings.Join(lines[start:end], "\n")
+   // Status line for navigation
+   status := fmt.Sprintf("Lines %d-%d of %d | q: quit | ↑↓/jk: scroll | PgUp/PgDn | Home/End", start+1, end, total)
+   // Combine content and status
+   inner := display + "\n" + status
+   // Style popup box with consistent width and padding
+   boxWidth := m.width - 2
+   box := lipgloss.NewStyle().
+       Border(lipgloss.RoundedBorder()).
+       BorderForeground(lipgloss.Color("240")).
+       Padding(1, 1).
+       Width(boxWidth).
+       Height(min(len(strings.Split(inner, "\n"))+2, m.height-4)).
+       Render(inner)
+   // Blank background full size
+   bg := lipgloss.NewStyle().
+       Width(m.width).
+       Height(m.height).
+       Render(" ")
+   // Overlay popup, centering horizontally with 1-cell margin
+   x := 1
+   y := (m.height - lipgloss.Height(box)) / 2
+   return layout.PlaceOverlay(x, y, box, bg, true)
 }
 
 func loadDiffFromStdin() (string, error) {

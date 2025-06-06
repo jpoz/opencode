@@ -1,0 +1,22 @@
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -1,6 +1,15 @@
+ package config
+ 
+ import (
+-   "fmt"
+    "os"
+ )
+ 
+ // Load reads and merges config from file and environment
+ func Load(path string) (Config, error) {
+     fileCfg, err := loadFromFile(path)
+     if err != nil {
+         return Defaults, err
+     }
+     merged := mergeConfig(Defaults, fileCfg)
+     if err := merged.Validate(); err != nil {
+         return merged, err
+     }
+     return merged, nil
+ }

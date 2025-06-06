@@ -1,14 +1,80 @@
---- a/config.yaml
-+++ b/config.yaml
-@@ -1,8 +1,10 @@
- # Application Configuration
- app:
-   name: "OpenCode"
--  version: "1.0.0"
-+  version: "1.1.0"
-   debug: false
-+  environment: "production"
-+  timeout: 30s
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -1,18 +1,30 @@
+ package config
  
- database:
-   host: "localhost"
+ import (
++   "fmt"
++   "os"
+ )
+ 
+ // Config holds global configuration
+ type Config struct {
+     Editor        string `json:"editor"`
++    MaxConcurrency int    `json:"max_concurrency"`
++    APIKey         string `json:"api_key"`
+     ConfigPath    string `json:"config_path"`
+     Verbose       bool   `json:"verbose"`
+ }
++// Validate ensures all required fields are set
++func (c *Config) Validate() error {
++   if c.APIKey == "" {
++       return fmt.Errorf("APIKey is required")
++   }
++   if c.MaxConcurrency <= 0 {
++       return fmt.Errorf("MaxConcurrency must be > 0")
++   }
++   return nil
++}
+ 
+--- a/internal/config/init.go
++++ b/internal/config/init.go
+@@ -7,10 +7,17 @@ import (
+     "os"
+ )
+ 
+-var Defaults Config
++// Defaults holds the default configuration values
+ var Defaults Config
++// init sets default values and reads environment
+ func init() {
+     Defaults = Config{
+         Editor:     os.Getenv("EDITOR"),
+-    }
++        Verbose:    false,
++        MaxConcurrency: 4,
++    }
++    // load default API key if present
++    if key := os.Getenv("OPENCODE_API_KEY"); key != "" {
++        Defaults.APIKey = key
++    }
+ }
+ 
+--- a/internal/config/config_test.go
++++ b/internal/config/config_test.go
+@@ -1,6 +1,13 @@
+ package config
+ 
+ import (
++   "os"
+     "testing"
++   "fmt"
++
+     "github.com/stretchr/testify/assert"
+ )
++
+ func TestDefaults(t *testing.T) {
+     t.Parallel()
+     // ensure default editor comes from ENV
+@@ -10,6 +17,13 @@ func TestDefaults(t *testing.T) {
+     os.Clearenv()
+     Defaults = Config{Editor: "vim", ConfigPath: "/tmp"}
+     assert.Equal(t, "vim", Defaults.Editor)
++}
++
++func TestValidate(t *testing.T) {
++   t.Parallel()
++   cfg := Config{Editor: "vim", ConfigPath: "/tmp", APIKey: "key", MaxConcurrency: 2}
++   err := cfg.Validate()
++   assert.NoError(t, err, fmt.Sprintf("expected valid config, got %v", err))
+ }

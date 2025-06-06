@@ -1,0 +1,257 @@
+diff --git a/cmd/difftest/main.go b/cmd/difftest/main.go
+index 168597c..b80495c 100644
+--- a/cmd/difftest/main.go
++++ b/cmd/difftest/main.go
+@@ -1,14 +1,16 @@
+ package main
+ 
+ import (
+-	"fmt"
+-	"io"
+-	"os"
+-	"strings"
+-
+-	tea "github.com/charmbracelet/bubbletea"
+-	"github.com/charmbracelet/lipgloss"
+-	"github.com/sst/opencode/internal/diff"
++   "fmt"
++   "io"
++   "os"
++   "strings"
++
++   tea "github.com/charmbracelet/bubbletea"
++   "github.com/charmbracelet/lipgloss"
++   xansi "github.com/charmbracelet/x/ansi"
++   "github.com/sst/opencode/internal/tui/layout"
++   "github.com/sst/opencode/internal/diff"
+ )
+ 
+ type model struct {
+@@ -71,39 +73,58 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+ 	return m, nil
+ }
+ 
++// View renders the diff in a hovering popup box over a blank background.
+ func (m model) View() string {
+-	if m.content == "" || m.height < 2 {
+-		return "Loading diff..."
+-	}
+-
+-	// Render the diff with current width
+-	rendered, err := diff.FormatDiff(m.content, diff.WithTotalWidth(m.width))
+-	if err != nil {
+-		return fmt.Sprintf("Error rendering diff: %v", err)
+-	}
+-
+-	lines := strings.Split(rendered, "\n")
+-
+-	// Apply scrolling
+-	startLine := m.scrollY
+-	endLine := min(len(lines), startLine+m.height-2)
+-
+-	var displayLines []string
+-	if startLine < len(lines) {
+-		displayLines = lines[startLine:endLine]
+-	}
+-
+-	content := strings.Join(displayLines, "\n")
+-
+-	// Add status bar
+-	statusBar := lipgloss.NewStyle().
+-		Background(lipgloss.Color("240")).
+-		Foreground(lipgloss.Color("255")).
+-		Width(m.width).
+-		Render(fmt.Sprintf(" Line %d-%d of %d | q to quit | ↑↓/jk to scroll | PgUp/PgDn | Home/End ",
+-			startLine+1, endLine, len(lines)))
+-
+-	return content + "\n" + statusBar
++   if m.content == "" || m.height < 4 || m.width < 10 {
++       return "Loading diff..."
++   }
++   // Calculate inner content width (box width minus border and padding)
++   // Calculate available width for diff content inside the box
++   diffWidth := m.width - 6
++   // Render side-by-side diff
++   rendered, err := diff.FormatDiff(m.content, diff.WithTotalWidth(diffWidth))
++   if err != nil {
++       return fmt.Sprintf("Error rendering diff: %v", err)
++   }
++   // Manually wrap long lines to diffWidth to avoid box overflow
++   rawLines := strings.Split(rendered, "\n")
++   var lines []string
++   for _, rl := range rawLines {
++       rem := rl
++       for lipgloss.Width(rem) > diffWidth {
++           part := xansi.Cut(rem, diffWidth, lipgloss.Width(rem))
++           lines = append(lines, part)
++           rem = strings.TrimPrefix(rem, part)
++       }
++       lines = append(lines, rem)
++   }
++   // Apply scrolling to wrapped lines
++   total := len(lines)
++   start := max(0, m.scrollY)
++   end := min(total, start+m.height-6)
++   display := strings.Join(lines[start:end], "\n")
++   // Status line for navigation
++   status := fmt.Sprintf("Lines %d-%d of %d | q: quit | ↑↓/jk: scroll | PgUp/PgDn | Home/End", start+1, end, total)
++   // Combine content and status
++   inner := display + "\n" + status
++   // Style popup box with consistent width and padding
++   boxWidth := m.width - 2
++   box := lipgloss.NewStyle().
++       Border(lipgloss.RoundedBorder()).
++       BorderForeground(lipgloss.Color("240")).
++       Padding(1, 1).
++       Width(boxWidth).
++       Height(min(len(strings.Split(inner, "\n"))+2, m.height-4)).
++       Render(inner)
++   // Blank background full size
++   bg := lipgloss.NewStyle().
++       Width(m.width).
++       Height(m.height).
++       Render(" ")
++   // Overlay popup, centering horizontally with 1-cell margin
++   x := 1
++   y := (m.height - lipgloss.Height(box)) / 2
++   return layout.PlaceOverlay(x, y, box, bg, true)
+ }
+ 
+ func loadDiffFromStdin() (string, error) {
+diff --git a/difftest b/difftest
+index f00be16..311d031 100755
+Binary files a/difftest and b/difftest differ
+diff --git a/internal/llm/agent/agent.go b/internal/llm/agent/agent.go
+index 184ef96..d13322c 100644
+--- a/internal/llm/agent/agent.go
++++ b/internal/llm/agent/agent.go
+@@ -383,11 +383,11 @@ func (a *agent) streamAndHandleEvents(ctx context.Context, sessionID string, msg
+ 	for event := range eventChan {
+ 		if processErr := a.processEvent(ctx, sessionID, &assistantMsg, event); processErr != nil {
+ 			a.finishMessage(ctx, &assistantMsg, message.FinishReasonCanceled)
+-			return assistantMsg, nil, processErr
++			return assistantMsg, nil, fmt.Errorf("failed to process event: %w", processErr)
+ 		}
+ 		if ctx.Err() != nil {
+ 			a.finishMessage(context.Background(), &assistantMsg, message.FinishReasonCanceled)
+-			return assistantMsg, nil, ctx.Err()
++			return assistantMsg, nil, fmt.Errorf("context canceled: %w", ctx.Err())
+ 		}
+ 	}
+ 
+@@ -400,13 +400,13 @@ func (a *agent) streamAndHandleEvents(ctx context.Context, sessionID string, msg
+ 				if errors.Is(err, context.Canceled) {
+ 					a.finishMessage(context.Background(), &assistantMsg, message.FinishReasonCanceled)
+ 				}
+-				return assistantMsg, nil, err
++				return assistantMsg, nil, fmt.Errorf("failed to execute tool calls: %w", err)
+ 			}
+ 
+ 			// Create a message with the tool results
+ 			toolResponseMsg, err := a.createToolResponseMessage(ctx, sessionID, toolResults)
+ 			if err != nil {
+-				return assistantMsg, nil, err
++				return assistantMsg, nil, fmt.Errorf("failed to create tool response message: %w", err)
+ 			}
+ 
+ 			return assistantMsg, toolResponseMsg, nil
+diff --git a/test-diffs/simple.diff b/test-diffs/simple.diff
+index 2037be5..fcd2557 100644
+--- a/test-diffs/simple.diff
++++ b/test-diffs/simple.diff
+@@ -1,14 +1,80 @@
+---- a/config.yaml
+-+++ b/config.yaml
+-@@ -1,8 +1,10 @@
+- # Application Configuration
+- app:
+-   name: "OpenCode"
+--  version: "1.0.0"
+-+  version: "1.1.0"
+-   debug: false
+-+  environment: "production"
+-+  timeout: 30s
+- 
+- database:
+-   host: "localhost"
+\ No newline at end of file
++--- a/internal/config/config.go
+++++ b/internal/config/config.go
++@@ -1,18 +1,30 @@
++ package config
++ 
++ import (
+++   "fmt"
+++   "os"
++ )
++ 
++ // Config holds global configuration
++ type Config struct {
++     Editor        string `json:"editor"`
+++    MaxConcurrency int    `json:"max_concurrency"`
+++    APIKey         string `json:"api_key"`
++     ConfigPath    string `json:"config_path"`
++     Verbose       bool   `json:"verbose"`
++ }
+++// Validate ensures all required fields are set
+++func (c *Config) Validate() error {
+++   if c.APIKey == "" {
+++       return fmt.Errorf("APIKey is required")
+++   }
+++   if c.MaxConcurrency <= 0 {
+++       return fmt.Errorf("MaxConcurrency must be > 0")
+++   }
+++   return nil
+++}
++ 
++--- a/internal/config/init.go
+++++ b/internal/config/init.go
++@@ -7,10 +7,17 @@ import (
++     "os"
++ )
++ 
++-var Defaults Config
+++// Defaults holds the default configuration values
++ var Defaults Config
+++// init sets default values and reads environment
++ func init() {
++     Defaults = Config{
++         Editor:     os.Getenv("EDITOR"),
++-    }
+++        Verbose:    false,
+++        MaxConcurrency: 4,
+++    }
+++    // load default API key if present
+++    if key := os.Getenv("OPENCODE_API_KEY"); key != "" {
+++        Defaults.APIKey = key
+++    }
++ }
++ 
++--- a/internal/config/config_test.go
+++++ b/internal/config/config_test.go
++@@ -1,6 +1,13 @@
++ package config
++ 
++ import (
+++   "os"
++     "testing"
+++   "fmt"
+++
++     "github.com/stretchr/testify/assert"
++ )
+++
++ func TestDefaults(t *testing.T) {
++     t.Parallel()
++     // ensure default editor comes from ENV
++@@ -10,6 +17,13 @@ func TestDefaults(t *testing.T) {
++     os.Clearenv()
++     Defaults = Config{Editor: "vim", ConfigPath: "/tmp"}
++     assert.Equal(t, "vim", Defaults.Editor)
+++}
+++
+++func TestValidate(t *testing.T) {
+++   t.Parallel()
+++   cfg := Config{Editor: "vim", ConfigPath: "/tmp", APIKey: "key", MaxConcurrency: 2}
+++   err := cfg.Validate()
+++   assert.NoError(t, err, fmt.Sprintf("expected valid config, got %v", err))
++ }
